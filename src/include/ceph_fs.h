@@ -704,6 +704,18 @@ void inline encode(const struct ceph_mds_request_head& h, ceph::buffer::list& bl
      * in decode(), because decode can properly skip
      * all unsupported fields if h.version >= 3.
      */
+  } else {
+    /*
+     * This should never happen, because it means that we have used a new
+     * API for idmapped mounts support but failed to properly check
+     * MDS feature CEPHFS_FEATURE_HAS_OWNER_UIDGID presence.
+     *
+     * See also Client::mount and CEPHFS_FEATURE_HAS_OWNER_UIDGID check in there.
+     * Logic is simple, if MDS lacks of CEPHFS_FEATURE_HAS_OWNER_UIDGID feature then
+     * we never set owner_{u,g}id to be different from h.caller_{u,g}id values
+     * (<=> we don't allow idmapped mounts).
+     */
+    ceph_assert(h.owner_uid == h.caller_uid && h.owner_gid == h.caller_gid);
   }
 }
 

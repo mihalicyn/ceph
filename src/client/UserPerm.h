@@ -20,6 +20,8 @@ struct UserPerm
 private:
   uid_t m_uid;
   gid_t m_gid;
+  uid_t m_inode_owner_uid;
+  gid_t m_inode_owner_gid;
   int gid_count;
   gid_t *gids;
   bool alloced_gids;
@@ -30,6 +32,8 @@ private:
     }
     m_uid = b.m_uid;
     m_gid = b.m_gid;
+    m_inode_owner_uid = b.m_inode_owner_uid;
+    m_inode_owner_gid = b.m_inode_owner_gid;
     gid_count = b.gid_count;
     if (gid_count > 0) {
       gids = new gid_t[gid_count];
@@ -40,17 +44,21 @@ private:
     }
   }
 public:
-  UserPerm() : m_uid(-1), m_gid(-1), gid_count(0),
+  UserPerm() : m_uid(-1), m_gid(-1), m_inode_owner_uid(-1), m_inode_owner_gid(-1), gid_count(0),
 	       gids(NULL), alloced_gids(false) {}
-  UserPerm(uid_t uid, gid_t gid, int ngids=0, gid_t *gidlist=NULL) :
-	    m_uid(uid), m_gid(gid), gid_count(ngids),
-	    gids(gidlist), alloced_gids(false) {}
+  UserPerm(uid_t uid, gid_t gid, int ngids=0, gid_t *gidlist=NULL, uid_t inode_owner_uid=-1, gid_t inode_owner_gid=-1) :
+	    m_uid(uid), m_gid(gid),
+      m_inode_owner_uid(inode_owner_uid != (uid_t)-1 ? inode_owner_uid : uid),
+      m_inode_owner_gid(inode_owner_gid != (gid_t)-1 ? inode_owner_gid : gid),
+      gid_count(ngids), gids(gidlist), alloced_gids(false) {}
   UserPerm(const UserPerm& o) : UserPerm() {
     deep_copy_from(o);
   }
   UserPerm(UserPerm && o) {
     m_uid = o.m_uid;
     m_gid = o.m_gid;
+    m_inode_owner_uid = o.m_inode_owner_uid;
+    m_inode_owner_gid = o.m_inode_owner_gid;
     gid_count = o.gid_count;
     gids = o.gids;
     alloced_gids = o.alloced_gids;
@@ -68,6 +76,8 @@ public:
 
   uid_t uid() const { return m_uid != (uid_t)-1 ? m_uid : ::geteuid(); }
   gid_t gid() const { return m_gid != (gid_t)-1 ? m_gid : ::getegid(); }
+  uid_t inode_owner_uid() const { return m_inode_owner_uid != (uid_t)-1 ? m_inode_owner_uid : uid(); }
+  gid_t inode_owner_gid() const { return m_inode_owner_gid != (gid_t)-1 ? m_inode_owner_gid : gid(); }
   bool gid_in_groups(gid_t id) const {
     if (id == gid()) return true;
     for (int i = 0; i < gid_count; ++i) {
@@ -84,6 +94,8 @@ public:
   void shallow_copy(const UserPerm& o) {
     m_uid = o.m_uid;
     m_gid = o.m_gid;
+    m_inode_owner_uid = o.m_inode_owner_uid;
+    m_inode_owner_gid = o.m_inode_owner_gid;
     gid_count = o.gid_count;
     gids = o.gids;
     alloced_gids = false;

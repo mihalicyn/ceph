@@ -921,6 +921,8 @@ public:
   bool fuse_default_permissions;
   bool _collect_and_send_global_metrics;
 
+  bool mds_has_owner_uidgid_feature() { return _mds_has_owner_uidgid_feature; }
+
 protected:
   std::list<ceph::condition_variable*> waiting_for_reclaim;
   /* Flags for check_caps() */
@@ -1910,6 +1912,8 @@ private:
   uint64_t nr_write_request = 0;
 
   std::vector<MDSCapAuth> cap_auths;
+
+  bool _mds_has_owner_uidgid_feature = false;
 };
 
 /**

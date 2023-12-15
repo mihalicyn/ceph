@@ -6650,6 +6650,18 @@ int Client::mount(const std::string &mount_root, const UserPerm& perms,
   if (!mount_root.empty()) {
     fp = filepath(mount_root.c_str());
   }
+
+  // FIXME (dirty hack): just check if feature is supported by issuing CEPH_MDS_OP_GETATTR request
+  // Need to discuss with ceph project folks what we can do in case when cct->_conf->client_use_random_mds is true
+  // as in this case we have a few MDS and we need some way to check feature presence for all of them
+  MetaRequest *req = new MetaRequest(CEPH_MDS_OP_GETATTR);
+  req->set_filepath(fp);
+  req->head.args.getattr.mask = CEPH_STAT_CAP_INODE_ALL;
+  r = make_request(req, perms, 0, 0, -1, 0, CEPHFS_FEATURE_HAS_OWNER_UIDGID);
+  if (r != -CEPHFS_EOPNOTSUPP) {
+    _mds_has_owner_uidgid_feature = true;
+  }
+
   while (true) {
     MetaRequest *req = new MetaRequest(CEPH_MDS_OP_GETATTR);
     req->set_filepath(fp);
@@ -14579,7 +14591,7 @@ int Client::_mknod(Inode *dir, const char *name, mode_t mode, dev_t rdev,
 
   MetaRequest *req = new MetaRequest(CEPH_MDS_OP_MKNOD);
 
-  req->set_inode_owner_uid_gid(perms.uid(), perms.gid());
+  req->set_inode_owner_uid_gid(perms.inode_owner_uid(), perms.inode_owner_gid());
 
   filepath path;
   dir->make_nosnap_relative_path(path);
@@ -14725,7 +14737,7 @@ int Client::_create(Inode *dir, const char *name, int flags, mode_t mode,
 
   MetaRequest *req = new MetaRequest(CEPH_MDS_OP_CREATE);
 
-  req->set_inode_owner_uid_gid(perms.uid(), perms.gid());
+  req->set_inode_owner_uid_gid(perms.inode_owner_uid(), perms.inode_owner_gid());
 
   filepath path;
   dir->make_nosnap_relative_path(path);
@@ -14805,7 +14817,7 @@ int Client::_mkdir(Inode *dir, const char *name, mode_t mode, const UserPerm& pe
 				     CEPH_MDS_OP_MKSNAP : CEPH_MDS_OP_MKDIR);
 
   if (!is_snap_op)
-    req->set_inode_owner_uid_gid(perm.uid(), perm.gid());
+    req->set_inode_owner_uid_gid(perm.inode_owner_uid(), perm.inode_owner_gid());
 
   filepath path;
   dir->make_nosnap_relative_path(path);
@@ -14945,7 +14957,7 @@ int Client::_symlink(Inode *dir, const char *name, const char *target,
 
   MetaRequest *req = new MetaRequest(CEPH_MDS_OP_SYMLINK);
 
-  req->set_inode_owner_uid_gid(perms.uid(), perms.gid());
+  req->set_inode_owner_uid_gid(perms.inode_owner_uid(), perms.inode_owner_gid());
 
   filepath path;
   dir->make_nosnap_relative_path(path);

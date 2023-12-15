@@ -592,7 +592,11 @@ static void fuse_ll_mknod(fuse_req_t req, fuse_ino_t parent, const char *name,
   CephFuse::Handle *cfuse = fuse_ll_req_prepare(req);
   const struct fuse_ctx *ctx = fuse_req_ctx(req);
   struct fuse_entry_param fe;
+#if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 16)
+  UserPerm perms(ctx->uid, ctx->gid, 0, NULL, ctx->owner_uid, ctx->owner_gid);
+#else
   UserPerm perms(ctx->uid, ctx->gid);
+#endif
   Inode *i2, *i1 = cfuse->iget(parent);
   if (!i1) {
     fuse_reply_err(req, get_sys_errno(CEPHFS_EINVAL));
@@ -627,7 +631,11 @@ static void fuse_ll_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
   struct fuse_entry_param fe;
 
   memset(&fe, 0, sizeof(fe));
+#if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 16)
+  UserPerm perm(ctx->uid, ctx->gid, 0, NULL, ctx->owner_uid, ctx->owner_gid);
+#else
   UserPerm perm(ctx->uid, ctx->gid);
+#endif
   get_fuse_groups(perm, req);
 #ifdef HAVE_SYS_SYNCFS
   auto fuse_multithreaded = cfuse->client->cct->_conf.get_val<bool>(
@@ -721,7 +729,11 @@ static void fuse_ll_symlink(fuse_req_t req, const char *existing,
   CephFuse::Handle *cfuse = fuse_ll_req_prepare(req);
   const struct fuse_ctx *ctx = fuse_req_ctx(req);
   struct fuse_entry_param fe;
+#if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 16)
+  UserPerm perms(ctx->uid, ctx->gid, 0, NULL, ctx->owner_uid, ctx->owner_gid);
+#else
   UserPerm perms(ctx->uid, ctx->gid);
+#endif
   Inode *i2, *i1 = cfuse->iget(parent);
   if (!i1) {
     fuse_reply_err(req, get_sys_errno(CEPHFS_EINVAL));
@@ -1091,7 +1103,11 @@ static void fuse_ll_create(fuse_req_t req, fuse_ino_t parent, const char *name,
   const struct fuse_ctx *ctx = fuse_req_ctx(req);
   struct fuse_entry_param fe;
   Fh *fh = NULL;
+#if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 16)
+  UserPerm perms(ctx->uid, ctx->gid, 0, NULL, ctx->owner_uid, ctx->owner_gid);
+#else
   UserPerm perms(ctx->uid, ctx->gid);
+#endif
   Inode *i1 = cfuse->iget(parent), *i2;
   if (!i1) {
     fuse_reply_err(req, get_sys_errno(CEPHFS_EINVAL));
@@ -1300,6 +1316,21 @@ static void do_init(void *data, fuse_conn_info *conn)
   }
   if(conn->capable & FUSE_CAP_EXPORT_SUPPORT)
     conn->want |= FUSE_CAP_EXPORT_SUPPORT;
+
+#if FUSE_VERSION >= FUSE_MAKE_VERSION(3, 16)
+  /*
+   * There is no reason to not enable idmapped mounts support by default
+   * (we do the same in the kernel client), but we need to ensure that:
+   * - MDS supports CEPHFS_FEATURE_HAS_OWNER_UIDGID
+   * - kernel fuse driver supports FUSE_CAP_ALLOW_IDMAP extension
+   * - fuse "default_permissions" mode is enabled (current fuse in kernel driver limitation)
+   */
+  if ((conn->capable & FUSE_CAP_ALLOW_IDMAP) &&
+      client->fuse_default_permissions &&
+      client->mds_has_owner_uidgid_feature()) {
+    conn->want |= FUSE_CAP_OWNER_UID_GID_EXT | FUSE_CAP_ALLOW_IDMAP;
+  }
+#endif
 #endif
 
   if (cfuse->fd_on_success) {
